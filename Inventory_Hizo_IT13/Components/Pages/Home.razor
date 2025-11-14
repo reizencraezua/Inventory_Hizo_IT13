@@ -1,0 +1,93 @@
+@page "/"
+@inject ProductService ProductService
+@inject StockService StockService
+@inject AuthService AuthService
+
+<PageTitle>Dashboard - Inventory Management</PageTitle>
+
+<h1>Dashboard</h1>
+
+    @if (lowStockProducts.Any())
+    {
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header" style="background: linear-gradient(135deg, var(--color-rose) 0%, #a08280 100%); color: #fff; border-bottom: 2px solid var(--color-mauve);">
+                <h5 class="mb-0 fw-bold">Low Stock Alert</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Category</th>
+                                <th class="text-center">Current Stock</th>
+                                <th class="text-center">Minimum Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var product in lowStockProducts)
+                            {
+                                <tr>
+                                    <td>@product.ProductName</td>
+                                    <td>@(product.CategoryName ?? "N/A")</td>
+                                    <td class="text-center">
+                                        @if (product.CurrentStock < product.MinimumStock)
+                                        {
+                                            <span style="color: red;">@product.CurrentStock</span>
+                                        }
+                                        else
+                                        {
+                                            @product.CurrentStock
+                                        }
+                                    </td>
+                                    <td class="text-center">@product.MinimumStock</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+
+@code {
+    private bool isLoading = true;
+    private int totalProducts = 0;
+    private int lowStockCount = 0;
+    private decimal totalStockValue = 0;
+    private int recentTransactions = 0;
+    private List<Product> lowStockProducts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        try
+        {
+            var products = await ProductService.GetAllProductsAsync();
+            totalProducts = products.Count;
+            
+            lowStockProducts = products.Where(p => p.CurrentStock <= p.MinimumStock).ToList();
+            lowStockCount = lowStockProducts.Count;
+            
+            totalStockValue = products.Sum(p => p.CurrentStock * p.UnitPrice);
+
+            var transactions = await StockService.GetTransactionHistoryAsync();
+            var sevenDaysAgo = DateTime.Now.AddDays(-7);
+            recentTransactions = transactions.Count(t => t.TransactionDate >= sevenDaysAgo);
+        }
+        catch
+        {
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

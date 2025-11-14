@@ -1,0 +1,467 @@
+@page "/stock"
+@inject StockService StockService
+@inject ProductService ProductService
+@inject SupplierService SupplierService
+@inject AuthService AuthService
+
+<PageTitle>Stock Management - Inventory Management</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Stock Management</h1>
+    <div>
+        <button class="btn btn-success me-2" @onclick="ShowAddStockModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle me-1" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
+            </svg>
+            Add Stock
+        </button>
+        <button class="btn btn-danger" @onclick="ShowRemoveStockModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle me-1" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
+            </svg>
+            Remove Stock
+        </button>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Product, Supplier, or User..." @bind="SearchTerm" @bind:event="oninput" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Filter by Date</label>
+                <select class="form-select" @bind="dateFilter" @bind:after="ApplyFilters">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Transaction Type</label>
+                <select class="form-select" @bind="typeFilter" @bind:after="ApplyFilters">
+                    <option value="">All Types</option>
+                    <option value="ADD">ADD</option>
+                    <option value="REMOVE">REMOVE</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Product</th>
+                    <th>Supplier</th>
+                    <th>Type</th>
+                    <th class="text-center">Quantity</th>
+                    <th>Notes</th>
+                    <th>User</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!filteredTransactions.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center">No transactions found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var transaction in filteredTransactions)
+                    {
+                        <tr>
+                            <td>@transaction.TransactionDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@(transaction.ProductName ?? "N/A")</td>
+                            <td>@(transaction.SupplierName ?? "N/A")</td>
+                            <td>
+                                @if (transaction.TransactionType == "ADD")
+                                {
+                                    <span class="badge bg-success">ADD</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">REMOVE</span>
+                                }
+                            </td>
+                            <td class="text-center">@transaction.Quantity</td>
+                            <td>@(transaction.Notes ?? "-")</td>
+                            <td>@(transaction.UserName ?? "N/A")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Add Stock Modal -->
+@if (showAddStockModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Stock</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddStockModal"></button>
+                </div>
+                <EditForm Model="@addStockForm" OnValidSubmit="@AddStock">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Product *</label>
+                            <InputSelect @bind-Value="addStockForm.ProductID" class="form-select">
+                                <option value="">Select a product</option>
+                                @foreach (var product in products)
+                                {
+                                    <option value="@product.ProductID">@product.ProductName</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => addStockForm.ProductID)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Supplier *</label>
+                            <InputSelect @bind-Value="addStockForm.SupplierID" class="form-select">
+                                <option value="">Select a supplier</option>
+                                @foreach (var supplier in suppliers)
+                                {
+                                    <option value="@supplier.SupplierID">@supplier.SupplierName</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => addStockForm.SupplierID)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantity *</label>
+                            <InputNumber @bind-Value="addStockForm.Quantity" class="form-control" />
+                            <ValidationMessage For="@(() => addStockForm.Quantity)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea @bind-Value="addStockForm.Notes" class="form-control" rows="3" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(message))
+                        {
+                            <div class="alert alert-@(success ? "success" : "danger")">@message</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddStockModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Stock</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Remove Stock Modal -->
+@if (showRemoveStockModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Remove Stock</h5>
+                    <button type="button" class="btn-close" @onclick="CloseRemoveStockModal"></button>
+                </div>
+                <EditForm Model="@removeStockForm" OnValidSubmit="@RemoveStock">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Product *</label>
+                            <InputSelect @bind-Value="removeStockForm.ProductID" class="form-select" @onchange="UpdateCurrentStock">
+                                <option value="">Select a product</option>
+                                @foreach (var product in products)
+                                {
+                                    <option value="@product.ProductID">@product.ProductName (Stock: @product.CurrentStock)</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => removeStockForm.ProductID)" />
+                        </div>
+                        @if (selectedProductForRemove != null)
+                        {
+                            <div class="alert alert-info">
+                                Current Stock: <strong>
+                                    @if (selectedProductForRemove.CurrentStock < selectedProductForRemove.MinimumStock)
+                                    {
+                                        <span style="color: red;">@selectedProductForRemove.CurrentStock</span>
+                                    }
+                                    else
+                                    {
+                                        @selectedProductForRemove.CurrentStock
+                                    }
+                                </strong>
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label">Quantity to Remove *</label>
+                            <InputNumber @bind-Value="removeStockForm.Quantity" class="form-control" />
+                            <ValidationMessage For="@(() => removeStockForm.Quantity)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea @bind-Value="removeStockForm.Notes" class="form-control" rows="3" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(message))
+                        {
+                            <div class="alert alert-@(success ? "success" : "danger")">@message</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseRemoveStockModal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Remove Stock</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<StockTransaction> transactions = new();
+    private List<StockTransaction> filteredTransactions = new();
+    private List<Product> products = new();
+    private List<Supplier> suppliers = new();
+    private bool isLoading = true;
+    
+    private string searchTerm = string.Empty;
+    private string dateFilter = "all";
+    private string typeFilter = string.Empty;
+    
+    private bool showAddStockModal = false;
+    private AddStockForm addStockForm = new();
+    
+    private bool showRemoveStockModal = false;
+    private RemoveStockForm removeStockForm = new();
+    private Product? selectedProductForRemove;
+    
+    private string? message;
+    private bool success = false;
+
+    private string SearchTerm
+    {
+        get => searchTerm;
+        set
+        {
+            searchTerm = value;
+            ApplyFilters();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            transactions = await StockService.GetTransactionHistoryAsync();
+            products = await ProductService.GetAllProductsAsync();
+            suppliers = await SupplierService.GetAllSuppliersAsync();
+            ApplyFilters();
+        }
+        catch { }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<StockTransaction> query = transactions.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.ToLower();
+            query = query.Where(t =>
+                (t.ProductName?.ToLower().Contains(term) ?? false) ||
+                (t.SupplierName?.ToLower().Contains(term) ?? false) ||
+                (t.UserName?.ToLower().Contains(term) ?? false) ||
+                (t.TransactionID.ToString().Contains(term))
+            );
+        }
+
+        var now = DateTime.Now;
+        switch (dateFilter)
+        {
+            case "today":
+                var todayStart = now.Date;
+                query = query.Where(t => t.TransactionDate >= todayStart);
+                break;
+            case "week":
+                var weekStart = now.Date.AddDays(-(int)now.DayOfWeek);
+                query = query.Where(t => t.TransactionDate >= weekStart);
+                break;
+            case "month":
+                var monthStart = new DateTime(now.Year, now.Month, 1);
+                query = query.Where(t => t.TransactionDate >= monthStart);
+                break;
+            case "year":
+                var yearStart = new DateTime(now.Year, 1, 1);
+                query = query.Where(t => t.TransactionDate >= yearStart);
+                break;
+        }
+
+        if (!string.IsNullOrEmpty(typeFilter))
+        {
+            query = query.Where(t => t.TransactionType == typeFilter);
+        }
+
+        filteredTransactions = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ShowAddStockModal()
+    {
+        addStockForm = new();
+        message = null;
+        showAddStockModal = true;
+    }
+
+    private void CloseAddStockModal()
+    {
+        showAddStockModal = false;
+        addStockForm = new();
+        message = null;
+    }
+
+    private async Task AddStock()
+    {
+        message = null;
+        try
+        {
+            var result = await StockService.AddStockAsync(
+                addStockForm.ProductID,
+                addStockForm.SupplierID!.Value,
+                addStockForm.Quantity,
+                addStockForm.Notes,
+                AuthService.CurrentUser?.Username
+            );
+
+            if (result)
+            {
+                success = true;
+                message = "Stock added successfully!";
+                await LoadData();
+                await Task.Delay(1000);
+                CloseAddStockModal();
+            }
+            else
+            {
+                success = false;
+                message = "Failed to add stock. Please try again.";
+            }
+        }
+        catch
+        {
+            success = false;
+            message = "An error occurred. Please try again.";
+        }
+    }
+
+    private void ShowRemoveStockModal()
+    {
+        removeStockForm = new();
+        selectedProductForRemove = null;
+        message = null;
+        showRemoveStockModal = true;
+    }
+
+    private void CloseRemoveStockModal()
+    {
+        showRemoveStockModal = false;
+        removeStockForm = new();
+        selectedProductForRemove = null;
+        message = null;
+    }
+
+    private void UpdateCurrentStock(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int productId))
+        {
+            selectedProductForRemove = products.FirstOrDefault(p => p.ProductID == productId);
+        }
+    }
+
+    private async Task RemoveStock()
+    {
+        message = null;
+        try
+        {
+            if (selectedProductForRemove != null && removeStockForm.Quantity > selectedProductForRemove.CurrentStock)
+            {
+                success = false;
+                message = $"Cannot remove more than current stock ({selectedProductForRemove.CurrentStock}).";
+                return;
+            }
+
+            var result = await StockService.RemoveStockAsync(
+                removeStockForm.ProductID,
+                removeStockForm.Quantity,
+                removeStockForm.Notes,
+                AuthService.CurrentUser?.Username
+            );
+
+            if (result)
+            {
+                success = true;
+                message = "Stock removed successfully!";
+                await LoadData();
+                await Task.Delay(1000);
+                CloseRemoveStockModal();
+            }
+            else
+            {
+                success = false;
+                message = "Failed to remove stock. Insufficient stock or error occurred.";
+            }
+        }
+        catch
+        {
+            success = false;
+            message = "An error occurred. Please try again.";
+        }
+    }
+
+    private class AddStockForm
+    {
+        [Required(ErrorMessage = "Product is required")]
+        public int ProductID { get; set; }
+        [Required(ErrorMessage = "Supplier is required")]
+        public int? SupplierID { get; set; }
+        [Required(ErrorMessage = "Quantity is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
+        public int Quantity { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private class RemoveStockForm
+    {
+        [Required(ErrorMessage = "Product is required")]
+        public int ProductID { get; set; }
+        [Required(ErrorMessage = "Quantity is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
+        public int Quantity { get; set; }
+        public string? Notes { get; set; }
+    }
+}
+

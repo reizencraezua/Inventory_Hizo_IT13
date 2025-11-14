@@ -1,0 +1,53 @@
+﻿@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Inventory Management</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()" style="display: flex; flex-direction: column;">
+    <nav class="flex-column" style="flex: 1;">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="products">
+                <span class="bi bi-box-seam" aria-hidden="true"></span> Products
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="stock">
+                <span class="bi bi-arrow-left-right" aria-hidden="true"></span> Stock
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="suppliers">
+                <span class="bi bi-truck" aria-hidden="true"></span> Suppliers
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="transactions">
+                <span class="bi bi-list-check" aria-hidden="true"></span> Transaction Logs
+            </NavLink>
+        </div>
+    </nav>
+    <div class="nav-item px-3" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+        <button class="nav-link btn btn-link text-start w-100" @onclick="HandleLogout">
+            <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+        </button>
+    </div>
+</div>
+
+@code {
+    private void HandleLogout()
+    {
+        AuthService.Logout();
+        Navigation.NavigateTo("/login");
+    }
+}

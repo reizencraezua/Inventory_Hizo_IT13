@@ -1,0 +1,655 @@
+@page "/products"
+@inject ProductService ProductService
+@inject SupplierService SupplierService
+@inject StockService StockService
+@inject AuthService AuthService
+
+<PageTitle>Products - Inventory Management</PageTitle>
+
+<h1>Products</h1>
+
+<div class="mb-3">
+    <div class="row">
+        <div class="col-md-6">
+            <input type="text" class="form-control" placeholder="Search products..." @bind="searchTerm" @bind:event="oninput" />
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-secondary me-2" @onclick="ToggleShowArchived">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-archive me-1" viewBox="0 0 16 16">
+                    <path d="M0 2a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v7.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 12.5V5a1 1 0 0 1-1-1V2zm2 3v7.5A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5V5H2zm13-3H1v2h14V2zM5 7.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/>
+                </svg>
+                @(showArchived ? "Hide Archived" : "Show Archived")
+            </button>
+            <button class="btn btn-primary" @onclick="ShowAddProductModal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle me-1" viewBox="0 0 16 16">
+                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                </svg>
+                Add New Product
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th class="text-center">Unit Price</th>
+                    <th class="text-center">Current Stock</th>
+                    <th class="text-center">Minimum Stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!filteredProducts.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center">No products found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var product in filteredProducts)
+                    {
+                        <tr class="product-row" @onclick="() => ShowProductDetails(product)" style="cursor: pointer;">
+                            <td>@product.ProductID</td>
+                            <td>@product.ProductName</td>
+                            <td>@(product.CategoryName ?? "N/A")</td>
+                            <td class="text-center">₱@product.UnitPrice.ToString("N2")</td>
+                            <td class="text-center">
+                                @if (product.CurrentStock <= product.MinimumStock)
+                                {
+                                    <span class="text-danger fw-bold">@product.CurrentStock</span>
+                                }
+                                else
+                                {
+                                    @product.CurrentStock
+                                }
+                            </td>
+                            <td class="text-center">@product.MinimumStock</td>
+                            <td>
+                                @if (product.IsArchived)
+                                {
+                                    <span class="badge bg-secondary">Archived</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                            </td>
+                            <td @onclick:stopPropagation="true" class="actions-cell">
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-warning" @onclick="() => ShowEditProductModal(product)" title="Edit">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                        </svg>
+                                    </button>
+                                    @if (!product.IsArchived)
+                                    {
+                                        <button class="btn btn-sm btn-delete" @onclick="() => ArchiveProduct(product)" title="Archive">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-archive" viewBox="0 0 16 16">
+                                                <path d="M0 2a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v7.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 12.5V5a1 1 0 0 1-1-1V2zm2 3v7.5A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5V5H2zm13-3H1v2h14V2zM5 7.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/>
+                                            </svg>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-success" @onclick="() => RestoreProduct(product)" title="Restore">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-counterclockwise" viewBox="0 0 16 16">
+                                                <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
+                                                <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
+                                            </svg>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Add/Edit Product Modal -->
+@if (showProductModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingProduct?.ProductID > 0 ? "Edit Product" : "Add New Product")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseProductModal"></button>
+                </div>
+                <EditForm Model="@productForm" OnValidSubmit="@SaveProduct">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Product Name *</label>
+                            <InputText @bind-Value="productForm.ProductName" class="form-control" />
+                            <ValidationMessage For="@(() => productForm.ProductName)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea @bind-Value="productForm.ProductDescription" class="form-control" rows="3" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Unit Price *</label>
+                            <InputNumber @bind-Value="productForm.UnitPrice" class="form-control" />
+                            <ValidationMessage For="@(() => productForm.UnitPrice)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Minimum Stock *</label>
+                            <InputNumber @bind-Value="productForm.MinimumStock" class="form-control" />
+                            <ValidationMessage For="@(() => productForm.MinimumStock)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <InputText @bind-Value="productForm.CategoryName" class="form-control" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(productMessage))
+                        {
+                            <div class="alert alert-@(productSuccess ? "success" : "danger")">@productMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" style="background-color: gray;" @onclick="CloseProductModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Product Details Modal -->
+@if (showDetailsModal && selectedProduct != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Product Details</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetailsModal"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Product ID:</dt>
+                        <dd class="col-sm-8">@selectedProduct.ProductID</dd>
+                        <dt class="col-sm-4">Name:</dt>
+                        <dd class="col-sm-8">@selectedProduct.ProductName</dd>
+                        <dt class="col-sm-4">Description:</dt>
+                        <dd class="col-sm-8">@(selectedProduct.ProductDescription ?? "N/A")</dd>
+                        <dt class="col-sm-4">Unit Price:</dt>
+                        <dd class="col-sm-8">₱@selectedProduct.UnitPrice.ToString("N2")</dd>
+                        <dt class="col-sm-4">Current Stock:</dt>
+                        <dd class="col-sm-8">
+                            @if (selectedProduct.CurrentStock <= selectedProduct.MinimumStock)
+                            {
+                                <span class="text-danger fw-bold">@selectedProduct.CurrentStock</span>
+                            }
+                            else
+                            {
+                                @selectedProduct.CurrentStock
+                            }
+                        </dd>
+                        <dt class="col-sm-4">Minimum Stock:</dt>
+                        <dd class="col-sm-8">@selectedProduct.MinimumStock</dd>
+                        <dt class="col-sm-4">Category:</dt>
+                        <dd class="col-sm-8">@(selectedProduct.CategoryName ?? "N/A")</dd>
+                        <dt class="col-sm-4">Date Added:</dt>
+                        <dd class="col-sm-8">@selectedProduct.DateAdded.ToString("MM/dd/yyyy")</dd>
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetailsModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Stock Modal -->
+@if (showAddStockModal && selectedProduct != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Stock - @selectedProduct.ProductName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddStockModal"></button>
+                </div>
+                <EditForm Model="@stockForm" OnValidSubmit="@AddStock">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Supplier *</label>
+                            <InputSelect @bind-Value="stockForm.SupplierID" class="form-select">
+                                <option value="">Select a supplier</option>
+                                @foreach (var supplier in suppliers)
+                                {
+                                    <option value="@supplier.SupplierID">@supplier.SupplierName</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => stockForm.SupplierID)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantity *</label>
+                            <InputNumber @bind-Value="stockForm.Quantity" class="form-control" />
+                            <ValidationMessage For="@(() => stockForm.Quantity)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea @bind-Value="stockForm.Notes" class="form-control" rows="3" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(stockMessage))
+                        {
+                            <div class="alert alert-@(stockSuccess ? "success" : "danger")">@stockMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddStockModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Stock</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Remove Stock Modal -->
+@if (showRemoveStockModal && selectedProduct != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Remove Stock - @selectedProduct.ProductName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseRemoveStockModal"></button>
+                </div>
+                <EditForm Model="@removeStockForm" OnValidSubmit="@RemoveStock">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            Current Stock: <strong>
+                                @if (selectedProduct.CurrentStock <= selectedProduct.MinimumStock)
+                                {
+                                    <span class="text-danger fw-bold">@selectedProduct.CurrentStock</span>
+                                }
+                                else
+                                {
+                                    @selectedProduct.CurrentStock
+                                }
+                            </strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantity to Remove *</label>
+                            <InputNumber @bind-Value="removeStockForm.Quantity" class="form-control" />
+                            <ValidationMessage For="@(() => removeStockForm.Quantity)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea @bind-Value="removeStockForm.Notes" class="form-control" rows="3" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(removeStockMessage))
+                        {
+                            <div class="alert alert-@(removeStockSuccess ? "success" : "danger")">@removeStockMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseRemoveStockModal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Remove Stock</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Product> products = new();
+    private List<Product> filteredProducts = new();
+    private List<Supplier> suppliers = new();
+    private bool isLoading = true;
+    private bool showArchived = false;
+    private string _searchTerm = string.Empty;
+    
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            _searchTerm = value;
+            ApplyFilter();
+        }
+    }
+    
+    private bool showProductModal = false;
+    private Product? editingProduct;
+    private ProductFormModel productForm = new();
+    private string? productMessage;
+    private bool productSuccess = false;
+    
+    private bool showDetailsModal = false;
+    private Product? selectedProduct;
+    
+    private bool showAddStockModal = false;
+    private StockForm stockForm = new();
+    private string? stockMessage;
+    private bool stockSuccess = false;
+    
+    private bool showRemoveStockModal = false;
+    private RemoveStockForm removeStockForm = new();
+    private string? removeStockMessage;
+    private bool removeStockSuccess = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            products = await ProductService.GetAllProductsAsync(showArchived);
+            suppliers = await SupplierService.GetAllSuppliersAsync();
+            ApplyFilter();
+        }
+        catch { }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleShowArchived()
+    {
+        showArchived = !showArchived;
+        _searchTerm = string.Empty;
+        await LoadData();
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filteredProducts = products;
+        }
+        else
+        {
+            var term = _searchTerm.ToLower();
+            filteredProducts = products.Where(p =>
+                (p.ProductName?.ToLower().Contains(term) ?? false) ||
+                (p.ProductDescription?.ToLower().Contains(term) ?? false) ||
+                (p.CategoryName?.ToLower().Contains(term) ?? false) ||
+                (p.ProductID.ToString().Contains(term))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ShowAddProductModal()
+    {
+        editingProduct = null;
+        productForm = new ProductFormModel { MinimumStock = 10 };
+        productMessage = null;
+        showProductModal = true;
+    }
+
+    private void ShowEditProductModal(Product product)
+    {
+        editingProduct = product;
+        productForm = new ProductFormModel
+        {
+            ProductID = product.ProductID,
+            ProductName = product.ProductName,
+            ProductDescription = product.ProductDescription,
+            UnitPrice = product.UnitPrice,
+            MinimumStock = product.MinimumStock,
+            CategoryName = product.CategoryName
+        };
+        productMessage = null;
+        showProductModal = true;
+    }
+
+    private void CloseProductModal()
+    {
+        showProductModal = false;
+        productForm = new ProductFormModel();
+        productMessage = null;
+    }
+
+    private async Task SaveProduct()
+    {
+        productMessage = null;
+        try
+        {
+            var product = new Product
+            {
+                ProductID = productForm.ProductID,
+                ProductName = productForm.ProductName,
+                ProductDescription = productForm.ProductDescription,
+                UnitPrice = productForm.UnitPrice,
+                MinimumStock = productForm.MinimumStock,
+                CategoryName = productForm.CategoryName
+            };
+
+            bool success;
+            if (editingProduct?.ProductID > 0)
+            {
+                success = await ProductService.UpdateProductAsync(product);
+            }
+            else
+            {
+                success = await ProductService.AddProductAsync(product);
+            }
+
+            if (success)
+            {
+                productSuccess = true;
+                productMessage = "Product saved successfully!";
+                await LoadData();
+                await Task.Delay(1000);
+                CloseProductModal();
+            }
+            else
+            {
+                productSuccess = false;
+                productMessage = "Failed to save product. Please try again.";
+            }
+        }
+        catch
+        {
+            productSuccess = false;
+            productMessage = "An error occurred. Please try again.";
+        }
+    }
+
+    private class ProductFormModel
+    {
+        public int ProductID { get; set; }
+
+        [Required(ErrorMessage = "Product name is required")]
+        public string ProductName { get; set; } = string.Empty;
+
+        public string? ProductDescription { get; set; }
+
+        [Required(ErrorMessage = "Unit price is required")]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Unit price must be greater than 0")]
+        public decimal UnitPrice { get; set; }
+
+        [Required(ErrorMessage = "Minimum stock is required")]
+        [Range(0, int.MaxValue, ErrorMessage = "Minimum stock must be 0 or greater")]
+        public int MinimumStock { get; set; }
+
+        public string? CategoryName { get; set; }
+    }
+
+    private void ShowProductDetails(Product product)
+    {
+        selectedProduct = product;
+        showDetailsModal = true;
+    }
+
+    private void CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        selectedProduct = null;
+    }
+
+    private void ShowAddStockModal(Product product)
+    {
+        selectedProduct = product;
+        stockForm = new StockForm { ProductID = product.ProductID };
+        stockMessage = null;
+        showAddStockModal = true;
+    }
+
+    private void CloseAddStockModal()
+    {
+        showAddStockModal = false;
+        stockForm = new();
+        stockMessage = null;
+    }
+
+    private async Task AddStock()
+    {
+        stockMessage = null;
+        try
+        {
+            var success = await StockService.AddStockAsync(
+                stockForm.ProductID,
+                stockForm.SupplierID!.Value,
+                stockForm.Quantity,
+                stockForm.Notes,
+                AuthService.CurrentUser?.Username
+            );
+
+            if (success)
+            {
+                stockSuccess = true;
+                stockMessage = "Stock added successfully!";
+                await LoadData();
+                await Task.Delay(1000);
+                CloseAddStockModal();
+            }
+            else
+            {
+                stockSuccess = false;
+                stockMessage = "Failed to add stock. Please try again.";
+            }
+        }
+        catch
+        {
+            stockSuccess = false;
+            stockMessage = "An error occurred. Please try again.";
+        }
+    }
+
+    private void ShowRemoveStockModal(Product product)
+    {
+        selectedProduct = product;
+        removeStockForm = new RemoveStockForm { ProductID = product.ProductID };
+        removeStockMessage = null;
+        showRemoveStockModal = true;
+    }
+
+    private void CloseRemoveStockModal()
+    {
+        showRemoveStockModal = false;
+        removeStockForm = new();
+        removeStockMessage = null;
+    }
+
+    private async Task RemoveStock()
+    {
+        removeStockMessage = null;
+        try
+        {
+            if (selectedProduct != null && removeStockForm.Quantity > selectedProduct.CurrentStock)
+            {
+                removeStockSuccess = false;
+                removeStockMessage = $"Cannot remove more than current stock ({selectedProduct.CurrentStock}).";
+                return;
+            }
+
+            var success = await StockService.RemoveStockAsync(
+                removeStockForm.ProductID,
+                removeStockForm.Quantity,
+                removeStockForm.Notes,
+                AuthService.CurrentUser?.Username
+            );
+
+            if (success)
+            {
+                removeStockSuccess = true;
+                removeStockMessage = "Stock removed successfully!";
+                await LoadData();
+                await Task.Delay(1000);
+                CloseRemoveStockModal();
+            }
+            else
+            {
+                removeStockSuccess = false;
+                removeStockMessage = "Failed to remove stock. Insufficient stock or error occurred.";
+            }
+        }
+        catch
+        {
+            removeStockSuccess = false;
+            removeStockMessage = "An error occurred. Please try again.";
+        }
+    }
+
+    private async Task ArchiveProduct(Product product)
+    {
+        if (await ProductService.ArchiveProductAsync(product.ProductID))
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task RestoreProduct(Product product)
+    {
+        if (await ProductService.RestoreProductAsync(product.ProductID))
+        {
+            await LoadData();
+        }
+    }
+
+    private class StockForm
+    {
+        public int ProductID { get; set; }
+        [Required(ErrorMessage = "Supplier is required")]
+        public int? SupplierID { get; set; }
+        [Required(ErrorMessage = "Quantity is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
+        public int Quantity { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private class RemoveStockForm
+    {
+        public int ProductID { get; set; }
+        [Required(ErrorMessage = "Quantity is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
+        public int Quantity { get; set; }
+        public string? Notes { get; set; }
+    }
+}
+
